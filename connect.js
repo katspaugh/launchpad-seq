@@ -1,6 +1,7 @@
 const midiOut = require('./midi');
 const launchpad = require('./launchpad');
 const sequencer = require('./sequencer');
+const config = require('./config.json');
 
 const allScales = {
   semitones: [
@@ -16,16 +17,12 @@ const allScales = {
   ]
 };
 
-const CHANNEL_1 = 2;
-const CHANNEL_2 = 3;
-
 const size = launchpad.getSize();
-const maxSteps = 16;
 let scale = allScales.ionian;
 let output;
 
 const newMessage = (k) => {
-  const channel = k.y < (size / 2) ? CHANNEL_1 : CHANNEL_2;
+  const channel = k.y < (size / 2) ? config.channelA : config.channelB;
   const row = k.y % (size / 2);
   const octave = Math.floor((k.x + size * row) / scale.length);
   const note = 36 + scale[(k.x + size * row) % scale.length] + octave * 12;
@@ -49,7 +46,7 @@ const modifiers = {
 const init = (outputName) => {
   output = midiOut.connect(outputName);
 
-  launchpad.init(maxSteps);
+  launchpad.init(config.maxSteps);
 
   // On button press
   launchpad.on('key', k => {
@@ -87,7 +84,7 @@ const init = (outputName) => {
       launchpad.onSceneChange(scene, prevScene);
     });
 
-    sequencer.init(maxSteps);
+    sequencer.init(config.maxSteps);
   });
 };
 

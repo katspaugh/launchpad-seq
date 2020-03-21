@@ -10,6 +10,7 @@ const MODS = { 4: 'E', 5: 'F', 6: 'G', 7: 'H' };
 let manualStep = false;
 let maxSteps = 0;
 let modifier = null;
+let modValues = {};
 
 const events = new EventEmitter();
 
@@ -41,23 +42,28 @@ const onSceneChange = (scene, prevScene) => {
 
   resetButtons();
   if (scene === -1) {
-    resetTopRow();
+    colorTopRow(-1);
+  }
+};
+
+const colorTopRow = (val) => {
+  for (let i = 0; i < SIZE; i++) {
+    pad.col(i <= val ? pad.green : pad.off, [ i, EDGE_ROW ]);
   }
 };
 
 const setModifier = (newMod) => {
   modifier = newMod;
-  resetTopRow();
+  colorTopRow(modValues[modifier] || -1);
 };
 
 const setModValue = (val) => {
-  for (let i = 0; i < SIZE; i++) {
-    pad.col(i <= val ? pad.green : pad.off, [ i, EDGE_ROW ]);
-  }
-
   console.log('Modified', MODS[modifier], 'value', val);
 
   events.emit('modifier', MODS[modifier], val);
+
+  modValues[modifier] = val;
+  colorTopRow(val);
 };
 
 const resetButtons = () => {
@@ -66,12 +72,6 @@ const resetButtons = () => {
     for (let y = 0; y < 8; y++) {
       pad.col(y < 4 ? pad.amber : pad.yellow, [ x, y ]);
     }
-  }
-};
-
-const resetTopRow = () => {
-  for (let i = 0; i < SIZE; i++) {
-    pad.col(pad.off, [ i, EDGE_ROW ]);
   }
 };
 

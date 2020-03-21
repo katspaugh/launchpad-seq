@@ -3,7 +3,7 @@ const EventEmitter = require('events');
 const events = new EventEmitter();
 
 let currentStep = 0;
-let maxSteps = 16;
+let maxSteps = 0;
 let scene = -1;
 const sequences = [];
 
@@ -64,17 +64,18 @@ const addNote = (msg) => {
   }
 
   let notes = seq[currentStep];
-  if (!notes) {
-    notes = seq[currentStep] = [];
+  if (!notes) { notes = seq[currentStep] = []; }
+
+  // Looping mode
+  if (looping) {
+    notes.push(msg);
+    return;
   }
 
-  if (!looping) {
-    const existing = seq[currentStep].findIndex(item => item.join() === msg.join());
-    if (existing >= 0) {
-      notes.splice(existing, 1);
-    } else {
-      notes.push(msg);
-    }
+  // Editing mode
+  const existing = seq[currentStep].findIndex(item => item.join() === msg.join());
+  if (existing >= 0) {
+    notes.splice(existing, 1);
   } else {
     notes.push(msg);
   }
