@@ -1,48 +1,26 @@
-const EventEmitter = require('event-emitter');
+const EventEmitter = require('events');
 
 const events = new EventEmitter();
-
-const allScales = {
-  semitones: [
-    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11
-  ],
-
-  ionian: [
-    0, 2, 4, 5, 7, 9, 11, 12
-  ]
-};
-
-const scale = allScales.ionian;
-
-const CHANNEL_1 = 3;
-const CHANNEL_2 = 4;
-
-const SIZE = 8;
 
 let currentStep = 0;
 let maxSteps = 16;
 let scene = -1;
-const sequences = new Array(SIZE).fill(null).map(() => []);
+const sequences = [];
 
 let tempo = 150;
 let last = Date.now();
 let looping = true;
+let lastTapTempo = Date.now();
 
-const clearStep = () => {
+const onStep = (step) => {
+  if (scene === -1) { return; }
+
+  events.emit('step', step, currentStep);
+  currentStep = step;
+
   const seq = sequences[scene];
-  const notes = seq[currentStep];
+  if (!seq) { return; }
 
-  if (notes) {
-    notes.forEach(msg => {
-      const offMsg = [ msg[0] - 16, msg[1], 0 ];
-
-      events.emit('clear', msg);
-    });
-  }
-};
-
-const onStep = () => {
-  const seq = sequences[scene];
   const notes = seq[currentStep];
 
   if (notes) {
@@ -50,29 +28,56 @@ const onStep = () => {
       events.emit('note', msg);
     });
   }
-
-  events.emit('step', currentStep);
 };
 
-const newScene = (index) => {
-  events.emit('scene', index, scene);
-  scene = index;
+const setScene = (index) => {
+  const prevScene = scene;
+  scene = scene === index ? -1 : index;
+  events.emit('scene', scene, prevScene);
   console.log('Scene', scene);
 };
 
-const newMessage = (k) => {
-  const channel = k.y < (SIZE / 2) ? CHANNEL_1 : CHANNEL_2;
-  const row = k.y % (SIZE / 2);
-  const octave = Math.floor((k.x + SIZE * row) / scale.length);
-  const note = 36 + scale[(k.x + SIZE * row) % scale.length] + octave * 12;
-  const velocity = k.pressed ? 127 : 0;
-  const msg = [ 143 + channel, note, velocity ];
-  msg.key = k;
-  return msg;
+const setTempo = (fraction) => {
+  const minp = 0;
+  const maxp = 1;
+
+  // The result should be between 100 an 10000000
+  var minv = Math.log(15);
+  var maxv = Math.log(500);
+
+  // calculate adjustment factor
+  const scale = (maxv - minv) / (maxp - minp);
+
+  tempo = Math.round(Math.exp(minv + scale * ((maxp - fraction) - minp)));
 };
 
 const togglePlay = (toggle) => {
   looping = toggle;
+};
+
+const addNote = (msg) => {
+  if (scene === -1) { return; }
+
+  let seq = sequences[scene];
+  if (!seq) {
+    seq = sequences[scene] = [];
+  }
+
+  let notes = seq[currentStep];
+  if (!notes) {
+    notes = seq[currentStep] = [];
+  }
+
+  if (!looping) {
+    const existing = seq[currentStep].findIndex(item => item.join() === msg.join());
+    if (existing >= 0) {
+      notes.splice(existing, 1);
+    } else {
+      notes.push(msg);
+    }
+  } else {
+    notes.push(msg);
+  }
 };
 
 const loop = () => {
@@ -80,20 +85,25 @@ const loop = () => {
   if (scene >= 0 && looping && (now - last >= tempo)) {
     last = now;
 
-    clearStep();
-
-    currentStep = (currentStep + 1) % maxSteps;
-
-    onStep();
+    onStep((currentStep + 1) % maxSteps);
   }
   setTimeout(loop, 10);
 };
 
-const init = () => {
-  // Initial scene
-  newScene(scene);
+const init = (steps) => {
+  maxSteps = steps;
+
+  setScene(0);
 
   loop();
+};
 
-  return maxSteps;
+module.exports = {
+  on: events.on.bind(events),
+  init,
+  onStep,
+  setScene,
+  togglePlay,
+  addNote,
+  setTempo
 };
