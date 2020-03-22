@@ -4,7 +4,9 @@ const events = new EventEmitter();
 
 let currentStep = 0;
 let maxSteps = 0;
+let chainedScenes = [];
 let scene = -1;
+let isMono = true;
 const sequences = [];
 
 let tempo = 150;
@@ -17,6 +19,12 @@ const onStep = (step) => {
 
   events.emit('step', step, currentStep);
   currentStep = step;
+
+  if (currentStep === 0 && chainedScenes.length) {
+    const nextScene = chainedScenes.shift();
+    chainedScenes.push(nextScene);
+    setScene(nextScene);
+  }
 
   const seq = sequences[scene];
   if (!seq) { return; }
@@ -31,10 +39,19 @@ const onStep = (step) => {
 };
 
 const setScene = (index) => {
-  const prevScene = scene;
-  scene = scene === index ? -1 : index;
-  events.emit('scene', scene, prevScene);
+  events.emit('scene', index, scene);
+  scene = index;
   console.log('Scene', scene);
+};
+
+const addScene = (scene) => {
+  chainedScenes.push(scene);
+  console.log('Chained', scene);
+  console.log('Current chain', chainedScenes);
+};
+
+const resetScenes = () => {
+  chainedScenes = [];
 };
 
 const setTempo = (fraction) => {
@@ -104,6 +121,8 @@ module.exports = {
   init,
   onStep,
   setScene,
+  addScene,
+  resetScenes,
   togglePlay,
   addNote,
   setTempo

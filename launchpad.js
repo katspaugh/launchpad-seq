@@ -2,15 +2,13 @@ const Launchpad = require('launchpad-mini');
 const EventEmitter = require('events');
 
 const EDGE_ROW = 8;
-const FN_START_ROW = 4;
+const SHIFT_KEY = 7;
 const SIZE = 8;
-
-const MODS = { 4: 'E', 5: 'F', 6: 'G', 7: 'H' };
 
 let manualStep = false;
 let maxSteps = 0;
-let modifier = null;
-let modValues = {};
+let isShift = false;
+let modValue = -1;
 
 const events = new EventEmitter();
 
@@ -23,7 +21,7 @@ const setKey = (key) => {
 };
 
 const onStep = (step, prevStep) => {
-  if (modifier) { return; }
+  if (isShift) { return; }
 
   const ratio = maxSteps / SIZE;
   if ((step % ratio) === 0) {
@@ -41,6 +39,7 @@ const onSceneChange = (scene, prevScene) => {
   }
 
   resetButtons();
+
   if (scene === -1) {
     colorTopRow(-1);
   }
@@ -52,17 +51,10 @@ const colorTopRow = (val) => {
   }
 };
 
-const setModifier = (newMod) => {
-  modifier = newMod;
-  colorTopRow(modValues[modifier] || -1);
-};
-
 const setModValue = (val) => {
-  console.log('Modified', MODS[modifier], 'value', val);
-
-  events.emit('modifier', MODS[modifier], val);
-
-  modValues[modifier] = val;
+  console.log('Modified', val);
+  events.emit('modifier', val);
+  modValue = val;
   colorTopRow(val);
 };
 
@@ -89,6 +81,8 @@ const init = (steps) => {
 
     // On button press
     pad.on('key', k => {
+      isShift = pad.isPressed([ EDGE_ROW, SHIFT_KEY ]);
+
       // Square buttons
       if (k.y < EDGE_ROW && k.x < EDGE_ROW) {
         setKey(k);
@@ -98,10 +92,8 @@ const init = (steps) => {
 
       // Top row – steps
       if (k.y === EDGE_ROW) {
-        if (modifier) {
-          if (k.pressed) {
-            setModValue(k.x);
-          }
+        if (isShift) {
+          if (k.pressed) { setModValue(k.x); }
           return;
         }
 
@@ -119,15 +111,17 @@ const init = (steps) => {
         return;
       }
 
-      // Rightmost column, upper part – scenes
-      if (k.x === EDGE_ROW && k.y < FN_START_ROW) {
-        if (k.pressed) {
-          events.emit('scene', k.y);
-        }
+      // Shift key
+      if (k.x === EDGE_ROW && k.y === SHIFT_KEY) {
+        colorTopRow(isShift ? modValue : -1);
         return;
       }
 
-      setModifier(k.pressed ? k.y : null);
+      // Rightmost column, upper part – scenes
+      if (k.x === EDGE_ROW && k.y != SHIFT_KEY) {
+        if (!k.pressed) { return; }
+        events.emit('scene', k.y, isShift);
+      }
     });
 
     process.on('exit', () => {

@@ -38,11 +38,6 @@ const setScale = (value) => {
   scale = allScales[key] || allScales.semitones;
 };
 
-const modifiers = {
-  E: (val) => sequencer.setTempo(val / size),
-  F: setScale
-};
-
 const init = (outputName) => {
   output = midiOut.connect(outputName);
 
@@ -51,12 +46,20 @@ const init = (outputName) => {
   // On button press
   launchpad.on('key', k => {
     const msg = newMessage(k);
-    output.sendMessage(msg);
     sequencer.addNote(msg);
+
+    if (k.pressed) {
+      output.sendMessage(msg);
+    }
   });
 
-  launchpad.on('scene', scene => {
-    sequencer.setScene(scene);
+  launchpad.on('scene', (scene, isShift) => {
+    if (isShift) {
+      sequencer.addScene(scene);
+    } else {
+      sequencer.resetScenes();
+      sequencer.setScene(scene);
+    }
   });
 
   launchpad.on('edit', step => {
@@ -64,10 +67,8 @@ const init = (outputName) => {
     sequencer.onStep(step);
   });
 
-  launchpad.on('modifier', (mod, value) => {
-    if (modifiers[mod]) {
-      modifiers[mod](value);
-    }
+  launchpad.on('modifier', (value) => {
+    sequencer.setTempo(value / size);
   });
 
   launchpad.on('init', () => {
@@ -77,7 +78,10 @@ const init = (outputName) => {
 
     sequencer.on('note', msg => {
       launchpad.setKey(msg.key);
-      output.sendMessage(msg);
+
+      if (msg.key.pressed) {
+        output.sendMessage(msg);
+      }
     });
 
     sequencer.on('scene', (scene, prevScene) => {
