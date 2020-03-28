@@ -1,9 +1,9 @@
 const Launchpad = require('launchpad-mini');
 const EventEmitter = require('events');
 
-const EDGE_ROW = 8;
-const SHIFT_KEY = 7;
 const SIZE = 8;
+const EDGE_ROW = SIZE;
+const SHIFT_KEY = 7;
 
 let manualStep = false;
 let maxSteps = 0;

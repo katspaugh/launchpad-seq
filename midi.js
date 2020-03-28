@@ -14,7 +14,7 @@ function connect(outputName) {
   }
 
   process.on('exit', () => {
-    output.close();
+    output.closePort();
   });
 
   return output;
