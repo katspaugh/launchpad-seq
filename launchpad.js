@@ -2,125 +2,203 @@ const Launchpad = require('launchpad-mini');
 const EventEmitter = require('events');
 
 const SIZE = 8;
+const STEPS = 16;
 const EDGE_ROW = SIZE;
-const SHIFT_KEY = 7;
 
-let manualStep = false;
-let maxSteps = 0;
-let isShift = false;
-let modValue = -1;
-
+const pad = new Launchpad();
 const events = new EventEmitter();
 
-let pad = new Launchpad();
+const layouts = {
+  drums: {
+    rows: 2,
 
-const setKey = (key) => {
-  const color = key.pressed ? pad.red :
-        key.y < (SIZE / 2) ? pad.amber : pad.yellow
-  pad.col(color, key);
-};
+    activePads: {},
 
-const onStep = (step, prevStep) => {
-  if (isShift) { return; }
+    color([ x, y ]) {
+      const { rows, activePads } = this;
 
-  const ratio = maxSteps / SIZE;
-  if ((step % ratio) === 0) {
-    pad.col(pad.off, [ Math.floor(prevStep / ratio), EDGE_ROW ]);
-    pad.col(pad.green, [ Math.ceil(step / ratio), EDGE_ROW ]);
-  }
-};
+      const color = y < rows ? pad.green :
+        y < rows * 2 ? pad.amber :
+        y < rows * 3 ? pad.green :
+        pad.amber;
 
-const onSceneChange = (scene, prevScene) => {
-  if (prevScene !== -1) {
-    pad.col(pad.off, [ EDGE_ROW, prevScene ]);
-  }
-  if (scene !== -1) {
-    pad.col(pad.green, [ EDGE_ROW, scene ]);
-  }
+      const id = `${x}_${y}`;
+      return id in activePads ? color.full : color.low;
+    },
 
-  resetButtons();
+    onPad(k) {
+      if (!k.pressed) { return; }
 
-  if (scene === -1) {
-    colorTopRow(-1);
-  }
-};
+      const { rows, activePads } = this;
+      const id = `${k.x}_${k.y}`;
+      const isActive = id in activePads;
 
-const colorTopRow = (val) => {
-  for (let i = 0; i < SIZE; i++) {
-    pad.col(i <= val ? pad.green : pad.off, [ i, EDGE_ROW ]);
-  }
-};
+      events.emit((isActive ? 'drums-remove' : 'drums-add'), {
+        track: Math.floor(k.y / rows),
+        step: k.x + SIZE * (k.y % rows),
+        on: k.pressed
+      });
 
-const setModValue = (val) => {
-  console.log('Modified', val);
-  events.emit('modifier', val);
-  modValue = val;
-  colorTopRow(val);
-};
+      if (isActive) {
+        delete activePads[id];
+      } else {
+        activePads[id] = true;
+      }
 
-const resetButtons = () => {
-  // Initial colors
-  for (let x = 0; x < 8; x++) {
-    for (let y = 0; y < 8; y++) {
-      pad.col(y < 4 ? pad.amber : pad.yellow, [ x, y ]);
+      pad.col(this.color([ k.x, k.y ]), k);
+    },
+
+    onStep(step, prevStep) {
+      const { rows } = this;
+      for (let y = 0; y < SIZE; y += rows) {
+        const prevKey = [ prevStep % SIZE, y + (prevStep < SIZE ? 0 : 1)];
+        pad.col(this.color(prevKey), prevKey);
+        pad.col(pad.red, [ step % SIZE, y + (step < SIZE ? 0 : 1) ]);
+      }
+    }
+  },
+
+  notes: {
+    rows: 2,
+
+    track: 0,
+
+    noteColor: pad.amber,
+
+    editStep: -1,
+    activeIndex: -1,
+
+    color([ x, y ]) {
+      const { rows, noteColor } = this;
+      return y < rows ? pad.green : noteColor.low;
+    },
+
+    onPad (k) {
+      const { rows, editStep, track, noteColor } = this;
+
+      if (k.y < rows) {
+        events.emit('notes-edit', k.x + k.y * SIZE, k.pressed);
+        this.activeStep = k.pressed ? k.x + k.y * SIZE : -1;
+        return;
+      }
+
+      pad.col(k, k.pressed ? pad.red : noteColor.low);
+
+      if (!k.pressed) { return; }
+
+      events.emit('notes-add', {
+        step: editStep === -1 ? undefined : editStep,
+        on: k.pressed,
+        track: track,
+        index: k.x + (k.y - rows) * SIZE
+      });
+    },
+
+    onStep(step, prevStep) {
+      const { rows } = this;
+
+      [ step, prevStep ].forEach(item => {
+        const x = item % SIZE;
+        const y = Math.floor(item / SIZE);
+        const key = [ x, y ];
+        pad.col(item === step ? pad.red : this.color(key), key);
+      });
+    },
+
+    _colorIndex(index, color) {
+      const { rows } = this;
+      const x = index % SIZE;
+      const y = Math.floor(index / SIZE) + rows;
+      pad.col(color, [ x, y ]);
+    },
+
+    onNote(index, track) {
+      if (track !== this.track) { return; }
+
+      const { activeIndex, noteColor } = this;
+
+      if (activeIndex != -1) {
+        this._colorIndex(activeIndex, noteColor.low);
+      }
+      this._colorIndex(index, noteColor.full);
+      this.activeIndex = index;
     }
   }
 };
 
-const init = (steps) => {
-  maxSteps = steps;
+layouts.notes2 = {
+  ...layouts.notes,
+  noteColor: pad.yellow,
+  track: 1
+};
 
+let currentLayout = layouts.notes;
+
+const drawLayout = () => {
+  for (let x = 0; x < SIZE; x++) {
+    for (let y = 0; y < SIZE; y++) {
+      const k = [ x, y ];
+      const color = currentLayout.color(k);
+      pad.col(color, k);
+    }
+  }
+};
+
+const onPad = (k) => {
+  currentLayout.onPad(k);
+};
+
+const onTopButton = (k) => {
+  events.emit('topButton', k.x);
+};
+
+const onSideButton = (k) => {
+  events.emit('sideButton', k.y);
+};
+
+const onStep = (step, prevStep) => {
+  currentLayout.onStep(step, prevStep);
+};
+
+const onNote = (index, track) => {
+  currentLayout.onNote && currentLayout.onNote(index, track);
+};
+
+const onSceneChange = (index) => {
+};
+
+const onLayoutChange = (index) => {
+  const keys = Object.keys(layouts);
+  currentLayout = layouts[keys[index]];
+  drawLayout();
+};
+
+const init = () => {
   // Connect
   pad.connect().then(() => {
     pad.reset(0);
 
-    resetButtons();
+    drawLayout();
 
     // Initial scene
     events.emit('init');
 
     // On button press
     pad.on('key', k => {
-      isShift = pad.isPressed([ EDGE_ROW, SHIFT_KEY ]);
-
       // Square buttons
       if (k.y < EDGE_ROW && k.x < EDGE_ROW) {
-        setKey(k);
-        events.emit('key', k);
+        onPad(k);
         return;
       }
 
-      // Top row – steps
+      // Top row
       if (k.y === EDGE_ROW) {
-        if (isShift) {
-          if (k.pressed) { setModValue(k.x); }
-          return;
-        }
-
-        if (k.pressed) {
-          let nextStep =  Math.round(k.x * (maxSteps / SIZE));
-          if (pad.isPressed([ ((k.x + 1) % SIZE), k.y ])) {
-            nextStep += 1;
-          } else if (pad.isPressed([ ((k.x + 1) % SIZE), k.y ])) {
-            nextStep -= 1;
-          }
-          events.emit('edit', nextStep % maxSteps);
-        } else {
-          events.emit('edit', null);
-        }
-        return;
+        onTopButton(k);
       }
 
-      // Shift key
-      if (k.x === EDGE_ROW && k.y === SHIFT_KEY) {
-        colorTopRow(isShift ? modValue : -1);
-        return;
-      }
-
-      // Rightmost column, upper part – scenes
-      if (k.x === EDGE_ROW && k.y != SHIFT_KEY) {
-        if (!k.pressed) { return; }
-        events.emit('scene', k.y, isShift);
+      // Rightmost column
+      if (k.x === EDGE_ROW) {
+        onSideButton(k);
       }
     });
 
@@ -129,17 +207,13 @@ const init = (steps) => {
       pad.disconnect();
     });
   });
-
-  return SIZE;
 };
-
-const getSize = () => SIZE;
 
 module.exports = {
   on: events.on.bind(events),
   init,
-  setKey,
   onStep,
+  onNote,
   onSceneChange,
-  getSize
+  onLayoutChange
 };

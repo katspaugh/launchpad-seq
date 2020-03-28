@@ -17,19 +17,14 @@ const allScales = {
   ]
 };
 
-const size = launchpad.getSize();
+const size = 8;
 let scale = allScales.ionian;
 let output;
 
-const newMessage = (k) => {
-  const channel = k.y < (size / 2) ? config.channelA : config.channelB;
-  const row = k.y % (size / 2);
-  const octave = Math.floor((k.x + size * row) / scale.length);
-  const note = 36 + scale[(k.x + size * row) % scale.length] + octave * 12;
-  const velocity = k.pressed ? 127 : 0;
-  const msg = [ (k.pressed ? 144 : 128) + channel, note, velocity ];
-  msg.key = k;
-  return msg;
+const newMessage = (channel, note, on) => {
+  const velocity = on ? 127 : 0;
+  const status = (on ? 144 : 128) + channel;
+  return [ status, note, velocity ];
 };
 
 const setScale = (value) => {
@@ -41,34 +36,43 @@ const setScale = (value) => {
 const init = (outputName) => {
   output = midiOut.connect(outputName);
 
-  launchpad.init(config.maxSteps);
+  launchpad.init();
 
-  // On button press
-  launchpad.on('key', k => {
-    const msg = newMessage(k);
-    sequencer.addNote(msg);
+  launchpad.on('drums-add', ({ track, step, on }) => {
+    const msg = newMessage(config.channelC, track === 3 ? 46 : 36 + track * 2, on);
+    sequencer.addNote(msg, step);
+    output.sendMessage(msg);
+  });
 
-    if (k.pressed) {
-      output.sendMessage(msg);
+  launchpad.on('drums-remove', ({ track, step, on }) => {
+    const msg = newMessage(config.channelDrums, track === 3 ? 46 : 36 + track * 2, on);
+    sequencer.removeNote(msg, step);
+  });
+
+  launchpad.on('notes-add', ({ track, index, step, on }) => {
+    const channel = track === 0 ? config.channelA : config.channelB;
+    const octaves = Math.floor(index / scale.length);
+    const msg = newMessage(channel, 36 + scale[index % scale.length] + octaves * 12, on);
+    msg.key = index;
+    msg.track = track;
+
+    sequencer.removeNote(msg, step);
+    sequencer.addNote(msg, step);
+
+    output.sendMessage(msg);
+  });
+
+  launchpad.on('notes-edit', (index, toggle) => {
+    sequencer.togglePlay(!toggle);
+    if (toggle) {
+      sequencer.onStep(index);
     }
   });
 
-  launchpad.on('scene', (scene, isShift) => {
-    if (isShift) {
-      sequencer.addScene(scene);
-    } else {
-      sequencer.resetScenes();
-      sequencer.setScene(scene);
+  launchpad.on('topButton', index => {
+    if (index < 3) {
+      launchpad.onLayoutChange(index);
     }
-  });
-
-  launchpad.on('edit', step => {
-    sequencer.togglePlay(step == null);
-    sequencer.onStep(step);
-  });
-
-  launchpad.on('modifier', (value) => {
-    sequencer.setTempo(value / size);
   });
 
   launchpad.on('init', () => {
@@ -77,10 +81,11 @@ const init = (outputName) => {
     });
 
     sequencer.on('note', msg => {
-      launchpad.setKey(msg.key);
+      console.log(msg);
+      output.sendMessage(msg);
 
-      if (msg.key.pressed) {
-        output.sendMessage(msg);
+      if (msg.key != null) {
+        launchpad.onNote(msg.key, msg.track);
       }
     });
 
@@ -88,7 +93,7 @@ const init = (outputName) => {
       launchpad.onSceneChange(scene, prevScene);
     });
 
-    sequencer.init(config.maxSteps);
+    sequencer.init();
   });
 };
 

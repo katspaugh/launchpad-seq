@@ -2,8 +2,8 @@ const EventEmitter = require('events');
 
 const events = new EventEmitter();
 
+const maxSteps = 16;
 let currentStep = 0;
-let maxSteps = 0;
 let chainedScenes = [];
 let scene = -1;
 let isMono = true;
@@ -72,16 +72,14 @@ const togglePlay = (toggle) => {
   looping = toggle;
 };
 
-const addNote = (msg) => {
+const addNote = (msg, step = currentStep) => {
   if (scene === -1) { return; }
 
   let seq = sequences[scene];
-  if (!seq) {
-    seq = sequences[scene] = [];
-  }
+  if (!seq) { seq = sequences[scene] = []; }
 
-  let notes = seq[currentStep];
-  if (!notes) { notes = seq[currentStep] = []; }
+  let notes = seq[step];
+  if (!notes) { notes = seq[step] = []; }
 
   // Looping mode
   if (looping) {
@@ -90,12 +88,24 @@ const addNote = (msg) => {
   }
 
   // Editing mode
-  const existing = seq[currentStep].findIndex(item => item.join() === msg.join());
+  const existing = notes.findIndex(item => item.join() === msg.join());
   if (existing >= 0) {
     notes.splice(existing, 1);
   } else {
     notes.push(msg);
   }
+};
+
+const removeNote = (msg, step = currentStep) => {
+  if (scene === -1) { return; }
+
+  let seq = sequences[scene];
+  if (!seq) {
+    seq = sequences[scene] = [];
+  }
+
+  const notes = seq[step] || [];
+  seq[step] = notes.filter(item => item[0] !== msg[0]);
 };
 
 const loop = () => {
@@ -108,9 +118,7 @@ const loop = () => {
   setTimeout(loop, 10);
 };
 
-const init = (steps) => {
-  maxSteps = steps;
-
+const init = () => {
   setScene(0);
 
   loop();
@@ -125,5 +133,6 @@ module.exports = {
   resetScenes,
   togglePlay,
   addNote,
+  removeNote,
   setTempo
 };
