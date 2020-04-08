@@ -39,7 +39,7 @@ const init = (outputName) => {
   launchpad.init();
 
   launchpad.on('drums-add', ({ track, step, on }) => {
-    const msg = newMessage(config.channelC, track === 3 ? 46 : 36 + track * 2, on);
+    const msg = newMessage(track, track === 3 ? 46 : 36 + track * 2, on);
     sequencer.addNote(msg, step);
     output.sendMessage(msg);
   });

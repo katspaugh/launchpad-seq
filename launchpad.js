@@ -27,8 +27,6 @@ const layouts = {
     },
 
     onPad(k) {
-      if (!k.pressed) { return; }
-
       const { rows, activePads } = this;
       const id = `${k.x}_${k.y}`;
       const isActive = id in activePads;
@@ -38,6 +36,8 @@ const layouts = {
         step: k.x + SIZE * (k.y % rows),
         on: k.pressed
       });
+
+      if (!k.pressed) { return; }
 
       if (isActive) {
         delete activePads[id];
@@ -70,7 +70,7 @@ const layouts = {
 
     color([ x, y ]) {
       const { rows, noteColor } = this;
-      return y < rows ? pad.green : noteColor.low;
+      return y < rows ? pad.green : noteColor;
     },
 
     onPad (k) {
@@ -82,7 +82,7 @@ const layouts = {
         return;
       }
 
-      pad.col(k, k.pressed ? pad.red : noteColor.low);
+      pad.col(k, k.pressed ? pad.red : noteColor);
 
       if (!k.pressed) { return; }
 
@@ -118,9 +118,9 @@ const layouts = {
       const { activeIndex, noteColor } = this;
 
       if (activeIndex != -1) {
-        this._colorIndex(activeIndex, noteColor.low);
+        this._colorIndex(activeIndex, noteColor);
       }
-      this._colorIndex(index, noteColor.full);
+      this._colorIndex(index, pad.red);
       this.activeIndex = index;
     }
   }
