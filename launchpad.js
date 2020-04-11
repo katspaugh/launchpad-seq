@@ -7,6 +7,7 @@ const EDGE_ROW = SIZE;
 
 const pad = new Launchpad();
 const events = new EventEmitter();
+let scene = 0;
 
 const layouts = {
   drums: {
@@ -22,13 +23,13 @@ const layouts = {
         y < rows * 3 ? pad.green :
         pad.amber;
 
-      const id = `${x}_${y}`;
+      const id = `${scene}_${x}_${y}`;
       return id in activePads ? color.full : color.low;
     },
 
     onPad(k) {
       const { rows, activePads } = this;
-      const id = `${k.x}_${k.y}`;
+      const id = `${scene}_${k.x}_${k.y}`;
       const isActive = id in activePads;
 
       events.emit((isActive ? 'drums-remove' : 'drums-add'), {
@@ -82,7 +83,7 @@ const layouts = {
         return;
       }
 
-      pad.col(k, k.pressed ? pad.red : noteColor);
+      pad.col(k.pressed ? pad.red : noteColor, k);
 
       events.emit('notes-add', {
         step: editStep === -1 ? undefined : editStep,
@@ -162,7 +163,10 @@ const onNote = (index, track) => {
   currentLayout.onNote && currentLayout.onNote(index, track);
 };
 
-const onSceneChange = (index) => {
+const onSceneChange = (index, prevIndex) => {
+  pad.col(pad.off, [ EDGE_ROW, prevIndex ]);
+  pad.col(pad.green, [ EDGE_ROW, index ]);
+  scene = index;
 };
 
 const onLayoutChange = (index) => {

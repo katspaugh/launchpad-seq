@@ -74,6 +74,10 @@ const init = (outputName) => {
     }
   });
 
+  launchpad.on('sideButton', index => {
+    sequencer.setScene(index);
+  });
+
   launchpad.on('init', () => {
     sequencer.on('step', (step, prevStep) => {
       launchpad.onStep(step, prevStep);
