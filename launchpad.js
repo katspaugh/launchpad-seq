@@ -17,8 +17,9 @@ const events = new EventEmitter();
 let pad = new Launchpad();
 
 const setKey = (key) => {
+  const { y } = key;
   const color = key.pressed ? pad.red :
-        key.y < (SIZE / 2) ? pad.amber : pad.yellow
+    y < 2 ? pad.amber : y < 4 ? pad.yellow : y < 6 ? pad.amber : pad.yellow;
   pad.col(color, key);
 };
 
@@ -70,7 +71,7 @@ const resetButtons = () => {
   // Initial colors
   for (let x = 0; x < 8; x++) {
     for (let y = 0; y < 8; y++) {
-      pad.col(y < 4 ? pad.amber : pad.yellow, [ x, y ]);
+      pad.col(y < 2 ? pad.amber : y < 4 ? pad.yellow : y < 6 ? pad.amber : pad.yellow, [ x, y ]);
     }
   }
 };

@@ -22,7 +22,8 @@ let scale = allScales.ionian;
 let output;
 
 const newMessage = (k) => {
-  const channel = k.y < (size / 2) ? config.channelA : config.channelB;
+  const { y } = k;
+  const channel = y < 2 ? config.channelA : y < 4 ? config.channelB : y < 6 ? config.channelC : config.channelD;
   const row = k.y % (size / 2);
   const octave = Math.floor((k.x + size * row) / scale.length);
   const note = 36 + scale[(k.x + size * row) % scale.length] + octave * 12;

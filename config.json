@@ -1,5 +1,7 @@
 {
-  "channelA": 2,
-  "channelB": 3,
-  "maxSteps": 8
+  "channelA": 0,
+  "channelB": 1,
+  "channelC": 2,
+  "channelD": 3,
+  "maxSteps": 16
 }
