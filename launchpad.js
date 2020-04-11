@@ -84,8 +84,6 @@ const layouts = {
 
       pad.col(k, k.pressed ? pad.red : noteColor);
 
-      if (!k.pressed) { return; }
-
       events.emit('notes-add', {
         step: editStep === -1 ? undefined : editStep,
         on: k.pressed,

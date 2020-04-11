@@ -41,7 +41,6 @@ const init = (outputName) => {
   launchpad.on('drums-add', ({ track, step, on }) => {
     const msg = newMessage(track, track === 3 ? 46 : 36 + track * 2, on);
     sequencer.addNote(msg, step);
-    output.sendMessage(msg);
   });
 
   launchpad.on('drums-remove', ({ track, step, on }) => {
