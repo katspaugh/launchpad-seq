@@ -11,7 +11,7 @@ const sequences = [];
 
 let tempo = 150;
 let last = Date.now();
-let looping = false;
+let looping = true;
 let lastTapTempo = Date.now();
 
 const onStep = (step) => {

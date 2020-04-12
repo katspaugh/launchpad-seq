@@ -1,7 +1,7 @@
 const midiOut = require('./midi');
 const launchpad = require('./launchpad');
 const sequencer = require('./sequencer');
-const config = require('./config.json');
+const config = require('./config');
 
 const allScales = {
   semitones: [
@@ -49,17 +49,17 @@ const init = (outputName) => {
   });
 
   launchpad.on('drums-add', ({ track, step, on }) => {
-    const msg = newMessage(track, track === 3 ? 46 : 36 + track * 2, on);
+    const msg = newMessage(config.channels[track], track === 3 ? 46 : 36 + track * 2, on);
     sequencer.addNote(msg, step);
   });
 
   launchpad.on('drums-remove', ({ track, step, on }) => {
-    const msg = newMessage(track, track === 3 ? 46 : 36 + track * 2, on);
+    const msg = newMessage(config.channels[track], track === 3 ? 46 : 36 + track * 2, on);
     sequencer.removeNote(msg, step);
   });
 
   launchpad.on('notes-add', ({ track, index, step, on }, key) => {
-    const channel = track === 0 ? config.channelA : config.channelB;
+    const channel = config.channels[track];
     const octaves = Math.floor(index / scale.length);
     const msg = newMessage(channel, 36 + scale[index % scale.length] + octaves * 12, on);
 

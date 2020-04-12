@@ -24,7 +24,7 @@ for (let x = 0; x <= SIZE; x++) {
 let scene = 0;
 let layout = 0;
 let recording = false;
-let playing = false;
+let playing = true;
 
 const updateButtons = () => {
   buttons.forEach((row, x) => {
@@ -96,7 +96,7 @@ const layoutTypes = {
   },
 
   notes: {
-    track: 0,
+    track: 4,
     noteColor: pad.amber,
 
     editStep: -1,
@@ -150,7 +150,7 @@ const layouts = [
   layoutTypes.notes,
   {
     ...layoutTypes.notes,
-    track: 1,
+    track: 5,
     noteColor: pad.yellow
   }
 ];
