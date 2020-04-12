@@ -4,33 +4,61 @@ const EventEmitter = require('events');
 const SIZE = 8;
 const STEPS = 16;
 const EDGE_ROW = SIZE;
+const REC_Y = EDGE_ROW - 1;
+const PLAY_Y = EDGE_ROW - 2;
 
 const pad = new Launchpad();
 const events = new EventEmitter();
+
+const buttons = [];
+const prevButtons = [];
+for (let x = 0; x <= SIZE; x++) {
+  buttons[x] = [];
+  prevButtons[x] = [];
+  for (let y = 0; y <= SIZE; y++) {
+    buttons[x][y] = pad.off;
+    prevButtons[x][y] = pad.off;
+  }
+}
+
 let scene = 0;
+let layout = 0;
+let recording = false;
+let playing = false;
 
-const layouts = {
+const updateButtons = () => {
+  buttons.forEach((row, x) => {
+    row.forEach((val, y) => {
+      if (val && prevButtons[x][y] !== val) {
+        pad.col(val, [ x, y ]);
+        prevButtons[x][y] = val;
+      }
+    });
+  });
+};
+
+const layoutTypes = {
   drums: {
-    rows: 2,
-
     activePads: {},
 
     color([ x, y ]) {
-      const { rows, activePads } = this;
+      const { activePads } = this;
+      const rows = Math.round(STEPS / SIZE);
 
       const color = y < rows ? pad.green :
         y < rows * 2 ? pad.amber :
         y < rows * 3 ? pad.green :
         pad.amber;
 
-      const id = `${scene}_${x}_${y}`;
-      return id in activePads ? color.full : color.low;
+      const id = `${x}_${y}`;
+      return id in (activePads[scene] || {}) ? color.full : color.low;
     },
 
     onPad(k) {
-      const { rows, activePads } = this;
-      const id = `${scene}_${k.x}_${k.y}`;
-      const isActive = id in activePads;
+      const { activePads } = this;
+      const rows = Math.round(STEPS / SIZE);
+      const id = `${k.x}_${k.y}`;
+      const isActive = id in (activePads[scene] || {});
 
       events.emit((isActive ? 'drums-remove' : 'drums-add'), {
         track: Math.floor(k.y / rows),
@@ -41,41 +69,47 @@ const layouts = {
       if (!k.pressed) { return; }
 
       if (isActive) {
-        delete activePads[id];
+        delete activePads[scene][id];
       } else {
-        activePads[id] = true;
+        activePads[scene] = activePads[scene] || {};
+        activePads[scene][id] = true;
       }
 
-      pad.col(this.color([ k.x, k.y ]), k);
+      buttons[k.x][k.y] = this.color([ k.x, k.y ]);
+      updateButtons();
     },
 
-    onStep(step, prevStep) {
-      const { rows } = this;
+    onStep(step) {
+      const rows = Math.round(STEPS / SIZE);
       for (let y = 0; y < SIZE; y += rows) {
-        const prevKey = [ prevStep % SIZE, y + (prevStep < SIZE ? 0 : 1)];
-        pad.col(this.color(prevKey), prevKey);
-        pad.col(pad.red, [ step % SIZE, y + (step < SIZE ? 0 : 1) ]);
+        const kx = step % SIZE;
+        const ky = y + (step < SIZE ? 0 : 1);
+        buttons[kx][ky] =  pad.red;
       }
+      updateButtons();
+    },
+
+    onSceneCopy(newScene) {
+      const { activePads } = this;
+      activePads[newScene] = { ...activePads[scene] };
     }
   },
 
   notes: {
-    rows: 2,
-
     track: 0,
-
     noteColor: pad.amber,
 
     editStep: -1,
-    activeIndex: -1,
+    activeKey: null,
 
     color([ x, y ]) {
-      const { rows, noteColor } = this;
-      return y < rows ? pad.green : noteColor;
+      const { noteColor } = this;
+      return y < (STEPS / SIZE) ? pad.green : noteColor;
     },
 
-    onPad (k) {
-      const { rows, editStep, track, noteColor } = this;
+    onPad(k) {
+      const { editStep } = this;
+      const rows = Math.round(STEPS / SIZE);
 
       if (k.y < rows) {
         events.emit('notes-edit', k.x + k.y * SIZE, k.pressed);
@@ -83,96 +117,131 @@ const layouts = {
         return;
       }
 
-      pad.col(k.pressed ? pad.red : noteColor, k);
+      buttons[k.x][k.y] = k.pressed ? pad.red : this.noteColor;
+      updateButtons();
 
       events.emit('notes-add', {
         step: editStep === -1 ? undefined : editStep,
         on: k.pressed,
-        track: track,
+        track: this.track,
         index: k.x + (k.y - rows) * SIZE
-      });
+      }, k);
     },
 
-    onStep(step, prevStep) {
-      const { rows } = this;
-
-      [ step, prevStep ].forEach(item => {
-        const x = item % SIZE;
-        const y = Math.floor(item / SIZE);
-        const key = [ x, y ];
-        pad.col(item === step ? pad.red : this.color(key), key);
-      });
+    onStep(step) {
+      const x = step % SIZE;
+      const y = Math.floor(step / SIZE);
+      buttons[x][y] = pad.red;
+      updateButtons();
     },
 
-    _colorIndex(index, color) {
-      const { rows } = this;
-      const x = index % SIZE;
-      const y = Math.floor(index / SIZE) + rows;
-      pad.col(color, [ x, y ]);
-    },
-
-    onNote(index, track) {
+    onNote(k, track) {
       if (track !== this.track) { return; }
 
-      const { activeIndex, noteColor } = this;
-
-      if (activeIndex != -1) {
-        this._colorIndex(activeIndex, noteColor);
-      }
-      this._colorIndex(index, pad.red);
-      this.activeIndex = index;
+      drawLayout();
+      buttons[k.x][k.y] = k.pressed ? pad.red : this.noteColor;
+      updateButtons();
     }
   }
 };
 
-layouts.notes2 = {
-  ...layouts.notes,
-  noteColor: pad.yellow,
-  track: 1
-};
-
-let currentLayout = layouts.notes;
+const layouts = [
+  layoutTypes.drums,
+  layoutTypes.notes,
+  {
+    ...layoutTypes.notes,
+    track: 1,
+    noteColor: pad.yellow
+  }
+];
 
 const drawLayout = () => {
   for (let x = 0; x < SIZE; x++) {
     for (let y = 0; y < SIZE; y++) {
-      const k = [ x, y ];
-      const color = currentLayout.color(k);
-      pad.col(color, k);
+      const color = layouts[layout].color([ x, y ]);
+      buttons[x][y] = color;
     }
+
+    buttons[EDGE_ROW][x] = pad.off;
   }
+
+  layouts.forEach((item, index) => {
+    buttons[index][EDGE_ROW] = index === layout ? pad.green.full : pad.green.low;
+  });
+  buttons[EDGE_ROW][scene] = pad.green;
+  buttons[EDGE_ROW][PLAY_Y] = playing ? pad.green.full : pad.green.low;
+  buttons[EDGE_ROW][REC_Y] = recording ? pad.red.full : pad.red.low;
 };
 
 const onPad = (k) => {
-  currentLayout.onPad(k);
+  layouts[layout].onPad(k);
 };
 
 const onTopButton = (k) => {
-  events.emit('topButton', k.x);
+  if (!k.pressed && k.x < layouts.length) {
+    onLayoutChange(k.x);
+  }
 };
 
 const onSideButton = (k) => {
-  events.emit('sideButton', k.y);
+  if (!k.pressed) { return; }
+
+  if (k.y === REC_Y) {
+    return onRecButton();
+  }
+  if (k.y === PLAY_Y) {
+    return onPlayButton();
+  }
+
+  const copyKey = pad.pressedButtons.find(([ x, y ]) => x === k.x && y !== k.y);
+  if (copyKey) {
+    onSceneCopy(k.y);
+    events.emit('scene-copy', k.y, copyKey[1]);
+  } else {
+    events.emit('scene-change', k.y);
+  }
 };
 
-const onStep = (step, prevStep) => {
-  currentLayout.onStep(step, prevStep);
+const onRecButton = () => {
+  recording = !recording;
+  events.emit('recButton', recording);
+
+  drawLayout();
+  updateButtons();
+};
+
+const onPlayButton = () => {
+  playing = !playing;
+  events.emit('playButton', playing);
+
+  drawLayout();
+  updateButtons();
+};
+
+const onStep = (step) => {
+  drawLayout();
+  layouts[layout].onStep(step);
 };
 
 const onNote = (index, track) => {
-  currentLayout.onNote && currentLayout.onNote(index, track);
+  layouts[layout].onNote && layouts[layout].onNote(index, track);
 };
 
 const onSceneChange = (index, prevIndex) => {
-  pad.col(pad.off, [ EDGE_ROW, prevIndex ]);
-  pad.col(pad.green, [ EDGE_ROW, index ]);
   scene = index;
+  drawLayout();
+  buttons[EDGE_ROW][index] = pad.green;
+  updateButtons();
+};
+
+const onSceneCopy = (index) => {
+  layouts[layout].onSceneCopy && layouts[layout].onSceneCopy(index);
 };
 
 const onLayoutChange = (index) => {
-  const keys = Object.keys(layouts);
-  currentLayout = layouts[keys[index]];
+  layout = index;
   drawLayout();
+  updateButtons();
 };
 
 const init = () => {
@@ -216,6 +285,5 @@ module.exports = {
   init,
   onStep,
   onNote,
-  onSceneChange,
-  onLayoutChange
+  onSceneChange
 };

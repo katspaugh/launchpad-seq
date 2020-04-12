@@ -11,7 +11,7 @@ const sequences = [];
 
 let tempo = 150;
 let last = Date.now();
-let looping = true;
+let looping = false;
 let lastTapTempo = Date.now();
 
 const onStep = (step) => {
@@ -39,18 +39,32 @@ const onStep = (step) => {
 };
 
 const setScene = (index) => {
+  const seq = sequences[scene];
+  seq && seq.forEach(notes => {
+    (notes || []).forEach(msg => {
+      if (msg[0] >= 144) {
+        events.emit('note', [ msg[0] - 16, msg[1], 0 ]);
+      }
+    });
+  });
+
   events.emit('scene', index, scene);
   scene = index;
   console.log('Scene', scene);
 };
 
-const addScene = (scene) => {
+const copyScene = (index, copyIndex) => {
+  sequences[index] = sequences[copyIndex].slice().map(notes => notes.slice());
+  console.log('Copied scene', copyIndex, 'to', index);
+};
+
+const chainScene = (scene) => {
   chainedScenes.push(scene);
   console.log('Chained', scene);
   console.log('Current chain', chainedScenes);
 };
 
-const resetScenes = () => {
+const resetChainedScenes = () => {
   chainedScenes = [];
 };
 
@@ -108,6 +122,22 @@ const removeNote = (msg, step = currentStep) => {
   seq[step] = notes.filter(item => item[0] !== msg[0]);
 };
 
+const replaceNote = (msg, step) => {
+  if (scene === -1) { return; }
+
+  let seq = sequences[scene];
+  if (!seq) {
+    seq = sequences[scene] = [];
+  }
+
+  const notes = seq[step] || [];
+  if (notes.some((item) => item.key === msg.key)) {
+    seq[step] = [];
+  } else {
+    notes.push(msg);
+  }
+};
+
 const loop = () => {
   const now = Date.now();
   if (scene >= 0 && looping && (now - last >= tempo)) {
@@ -129,10 +159,12 @@ module.exports = {
   init,
   onStep,
   setScene,
-  addScene,
-  resetScenes,
+  copyScene,
+  chainScene,
+  resetChainedScenes,
   togglePlay,
   addNote,
   removeNote,
+  replaceNote,
   setTempo
 };
