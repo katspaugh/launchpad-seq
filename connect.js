@@ -45,6 +45,7 @@ const init = (outputName) => {
   });
 
   launchpad.on('playButton', play => {
+    if (play) { sequencer.resetChainedScenes(); }
     sequencer.togglePlay(play);
   });
 
@@ -89,6 +90,10 @@ const init = (outputName) => {
 
   launchpad.on('scene-copy', (index, copyIndex) => {
     sequencer.copyScene(index, copyIndex);
+  });
+
+  launchpad.on('scene-chain', index => {
+    sequencer.chainScene(index);
   });
 
   launchpad.on('init', () => {

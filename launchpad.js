@@ -6,6 +6,7 @@ const STEPS = 16;
 const EDGE_ROW = SIZE;
 const REC_Y = EDGE_ROW - 1;
 const PLAY_Y = EDGE_ROW - 2;
+const SCENES_X = EDGE_ROW - 1;
 
 const pad = new Launchpad();
 const events = new EventEmitter();
@@ -193,13 +194,19 @@ const onSideButton = (k) => {
     return onPlayButton();
   }
 
+  if (pad.isPressed([ SCENES_X, EDGE_ROW ])) {
+    events.emit('scene-chain', k.y);
+    return;
+  }
+
   const copyKey = pad.pressedButtons.find(([ x, y ]) => x === k.x && y !== k.y);
   if (copyKey) {
     onSceneCopy(k.y);
     events.emit('scene-copy', k.y, copyKey[1]);
-  } else {
-    events.emit('scene-change', k.y);
+    return;
   }
+
+  events.emit('scene-change', k.y);
 };
 
 const onRecButton = () => {
